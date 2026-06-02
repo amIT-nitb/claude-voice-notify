@@ -1,5 +1,6 @@
 {
   "name": "claude-voice-notify",
+  "description": "A single-plugin marketplace publishing claude-voice-notify: cross-platform voice + OS notifications when Claude Code is waiting on you or finished a turn.",
   "owner": {
     "name": "Amit Singh"
   },
