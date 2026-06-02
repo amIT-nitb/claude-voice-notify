@@ -9,7 +9,7 @@
       "name": "claude-voice-notify",
       "source": "./",
       "description": "Voice + OS notifications when Claude is waiting on you or finished a turn. Cross-platform, focus-aware, with quiet hours and 60s debounce to keep noise low.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Amit Singh",
         "url": "https://github.com/amIT-nitb"

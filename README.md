@@ -52,22 +52,36 @@ Copy `hooks/hooks.json` into your `~/.claude/settings.json` `hooks` section, rep
 
 ## Enable
 
-Voice is **off by default**, notifications are **on by default**. Toggle from inside Claude Code:
+Voice is **off by default**, notifications are **on by default**. Toggle from inside Claude Code — settings apply to the **current project** by default:
 
 ```
-/voice-on        # enable voice announcements
-/voice-off       # disable voice (notifications still fire)
-/notify-on       # enable OS notifications
-/notify-off      # disable OS notifications
-/voice-status    # show current state
-/voice-test      # fire a test announcement (sound + voice + notification)
+/voice-on              # enable voice for THIS project
+/voice-off             # disable voice for THIS project
+/voice-on --global     # enable voice user-wide (all projects)
+/voice-off --global    # disable voice user-wide
+/notify-on / off       # same idea for OS notifications (with --global)
+/voice-status          # show effective state + per-layer breakdown
+/voice-test            # fire a test announcement (sound + voice + notification)
 ```
 
-Or via env vars in your shell rc (slash-command sentinel files override env vars):
+### Scopes & precedence
+
+Settings resolve in this order (**highest wins**):
+
+| Layer | Where | Set via |
+|---|---|---|
+| 1. Project | `<project>/.claude-voice-notify/{voice,notify}-{enabled,disabled}` | `/voice-on`, `/voice-off`, `/notify-on`, `/notify-off` (no flag) |
+| 2. User | `~/.claude/voice-notify/{voice,notify}-{enabled,disabled}` | the same commands with `--global` |
+| 3. Env var | `CLAUDE_VOICE`, `CLAUDE_NOTIFY` in your shell | `export CLAUDE_VOICE=on` |
+| 4. Default | hardcoded | voice off, notifications on |
+
+`/voice-status` shows effective value + every layer so you can see *why* it's on or off.
+
+> **Tip:** add `.claude-voice-notify/` to your project's `.gitignore` if you don't want each collaborator to inherit your local toggles.
+
+### Other knobs (env-only)
 
 ```bash
-export CLAUDE_VOICE=on            # default: off
-export CLAUDE_NOTIFY=on            # default: on
 export CLAUDE_VOICE_QUIET="22-7"   # silent 10pm–7am (voice only)
 export CLAUDE_VOICE_DEBOUNCE=60    # seconds to wait after Stop
 ```
@@ -109,7 +123,7 @@ commands/
   voice-status.md
 ```
 
-State files live under `~/.claude/voice-notify/`.
+State files live under `~/.claude/voice-notify/` (user scope) and `<project>/.claude-voice-notify/` (project scope, when set).
 
 ## How the debounce works
 

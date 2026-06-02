@@ -16,6 +16,8 @@ If `/voice-test` fires the two announcements, the end-to-end install path works.
 
 > Run this from a **fresh** terminal — not from inside the repo's working directory, where the plugin is already loaded locally.
 
+After install, settings default to **project scope** — `/voice-on` enables voice for the current project only. Use `/voice-on --global` to enable for the whole user (all projects). Run `/voice-status` to see effective state and which scope set it.
+
 ## Submit to the official community marketplace
 
 1. Open <https://claude.ai/settings/plugins/submit> (or <https://platform.claude.com/plugins/submit>).

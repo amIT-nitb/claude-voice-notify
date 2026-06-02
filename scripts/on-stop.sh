@@ -32,7 +32,7 @@ DEBOUNCE_SECS="${CLAUDE_VOICE_DEBOUNCE:-60}"
     if [ "$current" = "$TOKEN" ]; then
       rm -f "$PENDING_FILE"
       . "${SCRIPT_DIR}/lib/common.sh"
-      announce ready "Claude ready" "$TITLE" "$BODY"
+      announce ready "Claude ready" "$TITLE" "$BODY" "$CWD"
     fi
   fi
 ) </dev/null >/dev/null 2>&1 &

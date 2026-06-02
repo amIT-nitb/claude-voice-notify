@@ -24,5 +24,5 @@ else
 fi
 BODY="$(build_body "$HEADLINE" "$SESSION_ID")"
 
-announce waiting "Claude waiting" "$TITLE" "$BODY"
+announce waiting "Claude waiting" "$TITLE" "$BODY" "$CWD"
 exit 0

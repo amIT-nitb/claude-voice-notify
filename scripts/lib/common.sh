@@ -7,7 +7,21 @@ VOICE_FLAG="${STATE_DIR}/voice-enabled"
 NOTIFY_FLAG="${STATE_DIR}/notify-enabled"
 PENDING_FILE="${STATE_DIR}/stop-pending"
 
+# Project-scope state lives next to the user's code. Hooks pass the
+# session cwd in via the JSON payload; the per-project dir is computed
+# from that. See voice_enabled / notify_enabled for the precedence.
+PROJECT_STATE_SUBDIR=".claude-voice-notify"
+
 mkdir -p "$STATE_DIR" 2>/dev/null
+
+# Resolve the project state directory for a given cwd. Empty cwd → empty.
+# Caller is responsible for checking emptiness — we don't fall back to PWD,
+# because a hook firing with no cwd is genuinely "no project context".
+project_state_dir() {
+  local cwd="$1"
+  [ -z "$cwd" ] && return 0
+  printf '%s/%s' "$cwd" "$PROJECT_STATE_SUBDIR"
+}
 
 # Extract a top-level string field from a JSON blob.
 # Usage: json_field <key> <json-string>
@@ -68,17 +82,37 @@ detect_os() {
 }
 
 # Resolve effective on/off for a feature.
-# Sentinel file wins if present (created via slash commands).
-# Otherwise fall back to env var. Default = off for voice, on for notifications.
+# Precedence (highest first):
+#   1. Project-scope sentinel (<cwd>/.claude-voice-notify/{voice,notify}-{enabled,disabled})
+#   2. User-scope sentinel (~/.claude/voice-notify/...)
+#   3. Env var (CLAUDE_VOICE / CLAUDE_NOTIFY)
+#   4. Built-in default (voice off, notify on)
+#
+# voice_enabled and notify_enabled accept an optional cwd; pass "" to
+# skip project resolution (e.g. for tooling that has no project context).
 voice_enabled() {
-  if [ -f "$VOICE_FLAG" ]; then return 0; fi
-  if [ -f "${STATE_DIR}/voice-disabled" ]; then return 1; fi
+  local cwd="${1:-}"
+  local proj
+  if [ -n "$cwd" ]; then
+    proj="$(project_state_dir "$cwd")"
+    [ -f "${proj}/voice-enabled" ] && return 0
+    [ -f "${proj}/voice-disabled" ] && return 1
+  fi
+  [ -f "$VOICE_FLAG" ] && return 0
+  [ -f "${STATE_DIR}/voice-disabled" ] && return 1
   [ "${CLAUDE_VOICE:-off}" = "on" ]
 }
 
 notify_enabled() {
-  if [ -f "$NOTIFY_FLAG" ]; then return 0; fi
-  if [ -f "${STATE_DIR}/notify-disabled" ]; then return 1; fi
+  local cwd="${1:-}"
+  local proj
+  if [ -n "$cwd" ]; then
+    proj="$(project_state_dir "$cwd")"
+    [ -f "${proj}/notify-enabled" ] && return 0
+    [ -f "${proj}/notify-disabled" ] && return 1
+  fi
+  [ -f "$NOTIFY_FLAG" ] && return 0
+  [ -f "${STATE_DIR}/notify-disabled" ] && return 1
   [ "${CLAUDE_NOTIFY:-on}" = "on" ]
 }
 
@@ -203,22 +237,25 @@ notify_os() {
 }
 
 # High-level dispatcher.
-# announce <kind> <voice_message> [notify_title] [notify_body]
+# announce <kind> <voice_message> [notify_title] [notify_body] [cwd]
 #   kind: ready | waiting
 #   voice_message: short phrase spoken aloud (kept terse on purpose)
 #   notify_title / notify_body: optional richer content for the OS notification.
 #     If unset, falls back to "Claude" / voice_message.
+#   cwd: session cwd from the hook payload — used to resolve project-scoped
+#     enable flags. Pass "" or omit if no project context.
 announce() {
   local kind="$1"
   local voice_message="$2"
   local notify_title="${3:-Claude}"
   local notify_body="${4:-$voice_message}"
+  local cwd="${5:-}"
 
-  if notify_enabled; then
+  if notify_enabled "$cwd"; then
     notify_os "$notify_title" "$notify_body"
   fi
 
-  if voice_enabled && ! in_quiet_hours && ! terminal_focused; then
+  if voice_enabled "$cwd" && ! in_quiet_hours && ! terminal_focused; then
     play_cue "$kind"
     say_text "$voice_message"
   fi
