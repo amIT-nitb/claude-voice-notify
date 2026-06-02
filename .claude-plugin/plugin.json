@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "description": "Voice + OS notifications when Claude is waiting on you or finished a turn. Cross-platform, focus-aware, with quiet hours and 60s debounce to keep noise low.",
   "author": {
-    "name": "Amit Singh"
+    "name": "Amit Singh",
+    "url": "https://github.com/amIT-nitb"
   },
+  "homepage": "https://github.com/amIT-nitb/claude-voice-notify",
+  "repository": "https://github.com/amIT-nitb/claude-voice-notify",
   "keywords": ["voice", "notification", "tts", "hooks", "accessibility"],
   "license": "MIT"
 }
