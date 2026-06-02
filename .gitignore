@@ -1,0 +1,6 @@
+.DS_Store
+*.swp
+*.swo
+
+# Local Claude Code project guidance — not published
+CLAUDE.md
