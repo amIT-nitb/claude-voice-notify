@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# claude-voice-notify — control the plugin from any shell.
+#
+# Mirrors the slash commands so you can script around them without launching
+# Claude Code. Same precedence rules: project > user > env > default.
+#
+# Subcommands:
+#   on    [--global]              — enable voice
+#   off   [--global]              — disable voice
+#   notify-on  [--global]
+#   notify-off [--global]
+#   mute  [DURATION] [--global]   — silence both for a window (default 30m)
+#   unmute     [--global]
+#   status                        — show effective state + per-layer breakdown
+#   test                          — fire test announcements
+#   paths                         — show where state lives
+#
+# DURATION: 45s / 30m / 2h / bare-number-seconds.
+
+set -u
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=../scripts/lib/common.sh
+. "${PLUGIN_ROOT}/scripts/lib/common.sh"
+
+usage() {
+  sed -n '2,20p' "$0" | sed 's/^# \?//'
+  exit "${1:-0}"
+}
+
+# Resolve target dir from --global flag presence in remaining args.
+# Echoes "DIR|SCOPE_LABEL".
+resolve_scope() {
+  local global=0
+  for a in "$@"; do
+    case "$a" in --global|-g) global=1 ;; esac
+  done
+  if [ "$global" -eq 1 ]; then
+    printf '%s|%s' "$STATE_DIR" "user (global)"
+  else
+    printf '%s|%s' "$PWD/$PROJECT_STATE_SUBDIR" "project ($PWD)"
+  fi
+}
+
+# Strip --global / -g from the args; echo the remaining positional.
+non_flag_args() {
+  for a in "$@"; do
+    case "$a" in --global|-g) ;; *) printf '%s\n' "$a" ;; esac
+  done
+}
+
+set_flag() {
+  local feat="$1"; shift
+  local op="$1"; shift  # on | off
+  IFS='|' read -r dir scope <<< "$(resolve_scope "$@")"
+  mkdir -p "$dir"
+  if [ "$op" = "on" ]; then
+    rm -f "$dir/${feat}-disabled"
+    : > "$dir/${feat}-enabled"
+    printf '%s: ON — scope: %s\n' "$feat" "$scope"
+  else
+    rm -f "$dir/${feat}-enabled"
+    : > "$dir/${feat}-disabled"
+    printf '%s: OFF — scope: %s\n' "$feat" "$scope"
+  fi
+}
+
+mute_cmd() {
+  local duration="30m"
+  while read -r tok; do
+    [ -n "$tok" ] && duration="$tok"
+  done < <(non_flag_args "$@")
+  IFS='|' read -r dir scope <<< "$(resolve_scope "$@")"
+
+  local n
+  case "$duration" in
+    *s)  n=$((${duration%s})) ;;
+    *m)  n=$((${duration%m} * 60)) ;;
+    *h)  n=$((${duration%h} * 3600)) ;;
+    ''|*[!0-9]*) echo "Invalid duration: $duration (try 45s / 30m / 2h)"; return 1 ;;
+    *)   n=$((duration)) ;;
+  esac
+
+  local now until until_hr
+  now=$(date +%s)
+  until=$((now + n))
+  mkdir -p "$dir"
+  printf '%s\n' "$until" > "$dir/mute-until"
+  until_hr=$(date -r "$until" '+%H:%M' 2>/dev/null || date -d "@$until" '+%H:%M' 2>/dev/null || echo "$until")
+  printf 'Muted (%s) until %s — scope: %s\n' "$duration" "$until_hr" "$scope"
+}
+
+unmute_cmd() {
+  IFS='|' read -r dir scope <<< "$(resolve_scope "$@")"
+  if [ -f "$dir/mute-until" ]; then
+    rm -f "$dir/mute-until"
+    printf 'Unmuted — scope: %s\n' "$scope"
+  else
+    printf 'No active mute at %s scope.\n' "$scope"
+  fi
+}
+
+status_cmd() {
+  local user_dir="$STATE_DIR"
+  local proj_dir="$PWD/$PROJECT_STATE_SUBDIR"
+
+  resolve() {
+    local feature="$1" default="$2"
+    local proj_state="-" user_state="-" env_state="unset"
+    [ -f "$proj_dir/${feature}-enabled" ]  && proj_state="on"
+    [ -f "$proj_dir/${feature}-disabled" ] && proj_state="off"
+    [ -f "$user_dir/${feature}-enabled" ]  && user_state="on"
+    [ -f "$user_dir/${feature}-disabled" ] && user_state="off"
+    case "$feature" in
+      voice)  [ -n "${CLAUDE_VOICE:-}" ]  && env_state="$CLAUDE_VOICE" ;;
+      notify) [ -n "${CLAUDE_NOTIFY:-}" ] && env_state="$CLAUDE_NOTIFY" ;;
+    esac
+
+    local effective source
+    if [ "$proj_state" != "-" ]; then effective="$proj_state"; source="project"
+    elif [ "$user_state" != "-" ]; then effective="$user_state"; source="user"
+    elif [ "$env_state" != "unset" ]; then effective="$env_state"; source="env"
+    else effective="$default"; source="default"
+    fi
+    printf '%s|%s|%s|%s|%s' "$effective" "$source" "$proj_state" "$user_state" "$env_state"
+  }
+
+  IFS='|' read -r v_eff v_src v_proj v_user v_env <<< "$(resolve voice off)"
+  IFS='|' read -r n_eff n_src n_proj n_user n_env <<< "$(resolve notify on)"
+
+  # Mute trumps everything if active.
+  local mute mute_scope mute_remaining
+  mute="$(mute_info "$PWD")"
+  if [ -n "$mute" ]; then
+    mute_scope="${mute%%|*}"
+    mute_remaining="${mute##*|}"
+    v_eff="off"; v_src="muted ($mute_scope)"
+    n_eff="off"; n_src="muted ($mute_scope)"
+  fi
+
+  printf 'Voice:         %s (%s)\n' "$v_eff" "$v_src"
+  printf 'Notifications: %s (%s)\n' "$n_eff" "$n_src"
+  printf 'Quiet hours:   %s\n' "${CLAUDE_VOICE_QUIET:-none}"
+  printf 'Stop debounce: %ss\n' "${CLAUDE_VOICE_DEBOUNCE:-30}"
+  if [ -n "$mute" ]; then
+    local m=$((mute_remaining / 60))
+    local s=$((mute_remaining % 60))
+    printf 'Mute:          %s scope, %dm %ds remaining\n' "$mute_scope" "$m" "$s"
+  fi
+  echo
+  echo "Resolution (highest precedence wins):"
+  printf '  Voice    project=%-3s  user=%-3s  env=%-5s  → %s\n' "$v_proj" "$v_user" "$v_env" "$v_eff"
+  printf '  Notify   project=%-3s  user=%-3s  env=%-5s  → %s\n' "$n_proj" "$n_user" "$n_env" "$n_eff"
+  echo
+  echo "Project state dir: $proj_dir"
+  echo "User state dir:    $user_dir"
+}
+
+paths_cmd() {
+  printf 'Plugin root:    %s\n' "$PLUGIN_ROOT"
+  printf 'User state:     %s\n' "$STATE_DIR"
+  printf 'Project state:  %s\n' "$PWD/$PROJECT_STATE_SUBDIR"
+  printf 'Pending file:   %s\n' "$PENDING_FILE"
+  printf 'Sessions:       %s\n' "$SESSIONS_DIR"
+}
+
+cmd="${1:-status}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+  on)         set_flag voice on  "$@" ;;
+  off)        set_flag voice off "$@" ;;
+  notify-on)  set_flag notify on  "$@" ;;
+  notify-off) set_flag notify off "$@" ;;
+  mute)       mute_cmd "$@" ;;
+  unmute)     unmute_cmd "$@" ;;
+  status)     status_cmd ;;
+  test)       exec "${PLUGIN_ROOT}/scripts/test-announce.sh" ;;
+  paths)      paths_cmd ;;
+  -h|--help|help) usage 0 ;;
+  *)          echo "Unknown subcommand: $cmd"; usage 1 ;;
+esac

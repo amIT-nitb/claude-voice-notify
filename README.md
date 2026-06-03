@@ -6,8 +6,8 @@ A Claude Code plugin that announces — by voice and OS notification — when Cl
 
 | Event | Trigger | Behavior |
 |---|---|---|
-| **Claude waiting** | Permission prompt or 60s idle waiting on the user (Claude Code `Notification` hook) | Announce immediately |
-| **Claude ready** | Turn finishes (Claude Code `Stop` hook) | Wait 60s — announce only if you haven't replied |
+| **Claude waiting** | Permission prompt or idle Notification (Claude Code `Notification` hook) | Announce immediately. Suppresses Claude Code's redundant ~60s "still waiting" duplicate fired right after every Stop. |
+| **Claude ready** | Turn finishes (Claude Code `Stop` hook) | Wait 30s — announce only if you haven't replied. Notification body includes a **tool summary** (e.g. `Bash×4, Edit×2`) parsed from the transcript. |
 
 Both events fire an OS desktop notification (silent, dismissible) and — if voice is enabled — a short sound cue plus a spoken message.
 
@@ -19,13 +19,14 @@ The notification body always **leads with the same phrase as the voice line** ("
 
 | Event | Title | Body | Voice |
 |---|---|---|---|
-| Stop | `Claude · <folder>` | `Claude ready · session <8-char id>` | "Claude ready" |
+| Stop (no tools used) | `Claude · <folder>` | `Claude ready · session <8-char id>` | "Claude ready" |
+| Stop (with tool summary) | `Claude · <folder>` | `Claude ready — Bash×4, Edit×2 · session <8-char id>` | "Claude ready" |
 | Notification (Claude provided a message) | `Claude · <folder>` | `Claude waiting — <message> · session <8-char id>` | "Claude waiting" |
 | Notification (no message) | `Claude · <folder>` | `Claude waiting · session <8-char id>` | "Claude waiting" |
 
 Example:
 - Title: `Claude · CentroQueries`
-- Body: `Claude waiting — Claude needs your permission to use Bash · session abcd1234`
+- Body: `Claude ready — Bash×3, Edit×1 · session abcd1234`
 
 `<folder>` is the basename of the session's `cwd`. `<8-char id>` is the first 8 characters of Claude's session ID — enough to disambiguate parallel sessions without filling the notification.
 
@@ -60,8 +61,26 @@ Voice is **off by default**, notifications are **on by default**. Toggle from in
 /voice-on --global     # enable voice user-wide (all projects)
 /voice-off --global    # disable voice user-wide
 /notify-on / off       # same idea for OS notifications (with --global)
-/voice-status          # show effective state + per-layer breakdown
+/voice-mute 30m        # silence both voice + notify for 30 minutes (auto-expires)
+/voice-mute 2h --global  # mute everywhere for 2 hours
+/voice-unmute          # cancel an active mute
+/voice-status          # show effective state + mute + per-layer breakdown
 /voice-test            # fire a test announcement (sound + voice + notification)
+```
+
+Or from any shell (without launching Claude Code):
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify status
+${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify mute 1h --global
+${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify on   # enable voice for cwd
+${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify test
+```
+
+Symlink it onto your `$PATH` if you want it as a regular command:
+
+```bash
+ln -s "${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify" ~/.local/bin/claude-voice-notify
 ```
 
 ### Scopes & precedence
@@ -70,12 +89,15 @@ Settings resolve in this order (**highest wins**):
 
 | Layer | Where | Set via |
 |---|---|---|
+| 0. **Mute** (time-bound) | `mute-until` (epoch sec) at project or user scope | `/voice-mute [duration]` (`--global` for user) |
 | 1. Project | `<project>/.claude-voice-notify/{voice,notify}-{enabled,disabled}` | `/voice-on`, `/voice-off`, `/notify-on`, `/notify-off` (no flag) |
 | 2. User | `~/.claude/voice-notify/{voice,notify}-{enabled,disabled}` | the same commands with `--global` |
 | 3. Env var | `CLAUDE_VOICE`, `CLAUDE_NOTIFY` in your shell | `export CLAUDE_VOICE=on` |
 | 4. Default | hardcoded | voice off, notifications on |
 
-`/voice-status` shows effective value + every layer so you can see *why* it's on or off.
+`/voice-status` shows effective value + every layer so you can see *why* it's on or off, including any active mute and remaining time.
+
+Mute auto-expires — files are cleaned up the next time the gating helpers are consulted, so you never need to remember to "turn it back on."
 
 > **Tip:** add `.claude-voice-notify/` to your project's `.gitignore` if you don't want each collaborator to inherit your local toggles.
 
@@ -88,13 +110,23 @@ export CLAUDE_VOICE_DEBOUNCE=60    # seconds to wait after Stop
 
 ## Noise-reduction features
 
-- **60s debounce on `Stop`** — if you reply within 60s, the "Claude ready" announcement is cancelled. Only fires when you've genuinely walked away.
+- **30s debounce on `Stop`** — if you reply within 30s, the "Claude ready" announcement is cancelled. Only fires when you've genuinely walked away.
+- **Idle-ping suppression** — Claude Code fires a redundant "still waiting" Notification ~60s after every Stop. The plugin recognizes that and skips the duplicate, so you don't double-buzz.
+- **Time-bound mute** — `/voice-mute 30m` silences everything for a window. Auto-expires. Works at project or user scope.
 - **Focus skip** — on macOS, voice is suppressed when a terminal/editor is the foreground app. Notification still fires silently. Single biggest noise reducer.
 - **Quiet hours** — `CLAUDE_VOICE_QUIET="22-7"` silences voice between 10pm and 7am. Notifications unaffected.
 - **Split flags** — voice (audible) and notifications (silent) toggle independently.
 - **Distinct cues** — different system sounds for "ready" vs "waiting".
 
-The `Notification` event always fires immediately (no debounce) — when Claude needs permission, you should know now.
+The `Notification` event for **permission prompts and other non-idle messages** always fires immediately — when Claude needs your input, you should know now.
+
+## Persistent, stackable notifications
+
+The plugin asks the OS for **persistent** (sticky-until-dismissed) and **stackable** (one banner per event, not "the latest replaces the old") notifications. Per-OS specifics:
+
+- **macOS:** with `terminal-notifier` installed, the plugin passes `-actions "OK"` which forces the **alert** banner style — those persist until you click. Without `terminal-notifier`, falls back to `osascript`'s **banner** style which auto-dismisses; to make those sticky too, `brew install terminal-notifier`, **or** set your terminal's notification style to "Alerts" in System Settings → Notifications. Each event is a separate banner — no `-group` flag means they stack.
+- **Linux:** `notify-send --urgency=critical` — sticky on most desktop environments (GNOME, KDE).
+- **Windows:** `BurntToast -SnoozeAndDismiss` — sticky toast with action buttons. Falls back to a 30-second balloon tip if BurntToast isn't installed.
 
 ## Per-OS dependencies
 
@@ -111,16 +143,19 @@ If a TTS or notification binary isn't available, the corresponding output is sil
 ```
 .claude-plugin/plugin.json   # plugin manifest
 hooks/hooks.json             # registers Notification, Stop, UserPromptSubmit, SessionStart
+bin/
+  claude-voice-notify        # side CLI: status / on / off / mute / unmute / test / paths
 scripts/
-  on-notification.sh         # immediate "Claude waiting"
-  on-stop.sh                 # 60s-debounced "Claude ready"
-  on-prompt.sh               # cancels pending Stop announcement on user reply
+  on-notification.sh         # immediate "Claude waiting" (with idle-ping suppression)
+  on-stop.sh                 # 30s-debounced "Claude ready" + tool summary
+  on-prompt.sh               # cancels pending Stop, records user_seen
   on-session-start.sh        # clears stale state on new session
-  lib/common.sh              # OS detection, flag/quiet-hours/focus checks, dispatch
+  lib/common.sh              # OS detection, gating, dispatch, mute, tool_summary
 commands/
   voice-on.md voice-off.md
   notify-on.md notify-off.md
-  voice-status.md
+  voice-mute.md voice-unmute.md
+  voice-status.md voice-test.md
 ```
 
 State files live under `~/.claude/voice-notify/` (user scope) and `<project>/.claude-voice-notify/` (project scope, when set).
@@ -128,12 +163,22 @@ State files live under `~/.claude/voice-notify/` (user scope) and `<project>/.cl
 ## How the debounce works
 
 1. `Stop` writes a unique token to `~/.claude/voice-notify/stop-pending` and spawns a detached watcher.
-2. Watcher sleeps `CLAUDE_VOICE_DEBOUNCE` seconds (default 60), then checks the token still matches.
+2. Watcher sleeps `CLAUDE_VOICE_DEBOUNCE` seconds (default 30), then checks the token still matches.
 3. If the user submitted a prompt, `UserPromptSubmit` deleted the file → watcher does nothing.
 4. If a newer `Stop` ran, it overwrote the token → older watcher does nothing.
-5. Otherwise, announce.
+5. Otherwise, announce — *and record the timestamp in the per-session register* so the next idle ping ~60s later can be detected as redundant.
 
 Tokens are per-event, so overlapping turns can't race into duplicate announcements.
+
+## How idle-ping suppression works
+
+Claude Code fires a `Notification` event ~60s after every `Stop` with text like "Claude Code is waiting for your input". That's a duplicate of the "Claude ready" the Stop hook just played. To skip it:
+
+1. After the Stop watcher announces, it records `last_stop_at = now` in `~/.claude/voice-notify/sessions/<session_id>.json`.
+2. `UserPromptSubmit` records `last_seen = now` in the same file.
+3. When `Notification` fires with idle-pingy message text, the script reads the register: if `last_stop_at > 0` and `last_seen ≤ last_stop_at`, the user hasn't engaged since the Stop → suppress. Otherwise, fire (it's a real new event).
+
+Permission prompts and other non-idle Notifications fire unconditionally because their message text doesn't match the idle pattern.
 
 ## License
 

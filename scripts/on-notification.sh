@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Fires when Claude needs permission or has been idle ≥60s waiting on the user.
 # Announce immediately — this is a real "Claude is blocked" signal.
+#
+# Exception: Claude Code fires a redundant idle Notification ~60s after
+# every Stop, with message text like "Claude Code is waiting for your input".
+# The Stop banner already covered that, so we suppress the duplicate when
+# the user hasn't replied since the last announced Stop.
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,6 +18,13 @@ PAYLOAD="$(cat 2>/dev/null || true)"
 CWD="$(json_field cwd "$PAYLOAD")"
 SESSION_ID="$(json_field session_id "$PAYLOAD")"
 CLAUDE_MSG="$(json_field message "$PAYLOAD")"
+
+# Skip Claude Code's redundant idle ping that fires ~60s after every Stop.
+# Permission prompts and other real Notifications still fire because their
+# message text doesn't match the idle pattern.
+if is_redundant_idle_ping "$SESSION_ID" "$CLAUDE_MSG"; then
+  exit 0
+fi
 
 TITLE="$(build_title "$CWD")"
 # Always lead with "Claude waiting" so the notification matches the voice line.

@@ -1,38 +1,49 @@
 ---
-description: Show current voice + notification state (project + user + env, with effective value)
-allowed-tools: Bash(ls:*), Bash(test:*), Bash(echo:*), Bash(printf:*), Bash(date:*)
+description: Show effective voice + notification state, mute, and per-layer breakdown
+allowed-tools: Bash(ls:*), Bash(test:*), Bash(echo:*), Bash(printf:*), Bash(date:*), Bash(cat:*)
 ---
 
-Report effective voice + notification state, plus a per-layer breakdown so you can see *why* a setting is on or off.
+Report effective voice + notification state, plus per-layer breakdown so you can see *why* a setting is on or off, and any active mute.
 
-Precedence: project > user > env var > built-in default.
+Precedence: **mute** > project > user > env var > built-in default.
 
 Run this script:
 
 ```bash
 USER_DIR="$HOME/.claude/voice-notify"
 PROJ_DIR="$PWD/.claude-voice-notify"
+NOW=$(date +%s)
 
-# Layer-1 (project), Layer-2 (user), Layer-3 (env), Layer-4 (default)
+# Mute lookup — highest priority
+MUTE_SCOPE=""
+MUTE_REMAINING=0
+for scope_dir in "$PROJ_DIR" "$USER_DIR"; do
+  if [ -f "$scope_dir/mute-until" ]; then
+    UNTIL=$(cat "$scope_dir/mute-until" 2>/dev/null || echo 0)
+    if [ "$UNTIL" -gt "$NOW" ] 2>/dev/null; then
+      [ "$scope_dir" = "$PROJ_DIR" ] && MUTE_SCOPE="project" || MUTE_SCOPE="user"
+      MUTE_REMAINING=$((UNTIL - NOW))
+      break
+    fi
+  fi
+done
+
 resolve() {
   local feature="$1" default="$2"
   local proj_state="-" user_state="-" env_state="unset"
-  if [ -f "$PROJ_DIR/${feature}-enabled" ]; then proj_state="on"
-  elif [ -f "$PROJ_DIR/${feature}-disabled" ]; then proj_state="off"
-  fi
-  if [ -f "$USER_DIR/${feature}-enabled" ]; then user_state="on"
-  elif [ -f "$USER_DIR/${feature}-disabled" ]; then user_state="off"
-  fi
-
-  local env_var
+  [ -f "$PROJ_DIR/${feature}-enabled" ]  && proj_state="on"
+  [ -f "$PROJ_DIR/${feature}-disabled" ] && proj_state="off"
+  [ -f "$USER_DIR/${feature}-enabled" ]  && user_state="on"
+  [ -f "$USER_DIR/${feature}-disabled" ] && user_state="off"
   case "$feature" in
-    voice)  env_var="${CLAUDE_VOICE:-}" ;;
-    notify) env_var="${CLAUDE_NOTIFY:-}" ;;
+    voice)  [ -n "${CLAUDE_VOICE:-}" ]  && env_state="$CLAUDE_VOICE" ;;
+    notify) [ -n "${CLAUDE_NOTIFY:-}" ] && env_state="$CLAUDE_NOTIFY" ;;
   esac
-  [ -n "$env_var" ] && env_state="$env_var"
 
   local effective source
-  if [ "$proj_state" != "-" ]; then
+  if [ -n "$MUTE_SCOPE" ]; then
+    effective="off"; source="muted ($MUTE_SCOPE)"
+  elif [ "$proj_state" != "-" ]; then
     effective="$proj_state"; source="project"
   elif [ "$user_state" != "-" ]; then
     effective="$user_state"; source="user"
@@ -50,7 +61,11 @@ IFS='|' read -r n_eff n_src n_proj n_user n_env <<< "$(resolve notify on)"
 printf 'Voice:         %s (%s)\n' "$v_eff" "$v_src"
 printf 'Notifications: %s (%s)\n' "$n_eff" "$n_src"
 printf 'Quiet hours:   %s\n' "${CLAUDE_VOICE_QUIET:-none}"
-printf 'Stop debounce: %ss\n' "${CLAUDE_VOICE_DEBOUNCE:-60}"
+printf 'Stop debounce: %ss\n' "${CLAUDE_VOICE_DEBOUNCE:-30}"
+if [ -n "$MUTE_SCOPE" ]; then
+  M=$((MUTE_REMAINING / 60)); S=$((MUTE_REMAINING % 60))
+  printf 'Mute:          %s scope, %dm %ds remaining\n' "$MUTE_SCOPE" "$M" "$S"
+fi
 echo
 echo "Resolution (highest precedence wins):"
 printf '  Voice    project=%-3s  user=%-3s  env=%-5s  → %s\n' "$v_proj" "$v_user" "$v_env" "$v_eff"
