@@ -398,14 +398,20 @@ play_cue() {
 #
 # Goal: persist until user dismisses, and stack instead of replacing.
 #
-# How that's achieved per OS:
-#   macOS  — terminal-notifier with "-actions OK" forces alert style (sticky).
-#            Without terminal-notifier, falls back to osascript (banner; auto-
-#            dismisses unless the user sets your terminal to "Alerts" in
-#            System Settings → Notifications).
-#            NEVER passes -group, so each call is a distinct stacked banner.
-#   linux  — notify-send --urgency=critical (sticky on most DEs)
-#   windows— BurntToast (sticky toast); balloon-tip fallback expires.
+# Per-OS strategy (layered fallback so the plugin works out of the box,
+# better with optional binaries):
+#   macOS  — alerter (preferred, signed + notarized for macOS 15+/26+):
+#              persistent alert style, stacks, runs on current macOS.
+#            terminal-notifier (older fallback): persistent on macOS ≤14;
+#              often silently broken on 15+. Kept for users who already
+#              have it installed.
+#            osascript display notification (always available, built-in):
+#              banner style, auto-dismisses, but works without any extra
+#              install.
+#            NEVER passes -group / --group, so each call stacks rather
+#            than replacing the prior.
+#   linux  — notify-send --urgency=critical (sticky on most DEs).
+#   windows— BurntToast (sticky toast); balloon-tip fallback (30s).
 notify_os() {
   local title="$1"
   local body="$2"
@@ -413,9 +419,16 @@ notify_os() {
   os=$(detect_os)
   case "$os" in
     macos)
-      if command -v terminal-notifier >/dev/null 2>&1; then
-        # -actions "OK" makes the banner an alert (persistent until dismissed).
-        # No -group → each notification stacks instead of replacing the prior.
+      if command -v alerter >/dev/null 2>&1; then
+        # --actions "OK" + default --timeout 0 → alert persists until clicked.
+        # No --group → each notification stacks.
+        alerter \
+          --title "$title" \
+          --message "$body" \
+          --actions "OK" \
+          --ignore-dnd \
+          >/dev/null 2>&1 &
+      elif command -v terminal-notifier >/dev/null 2>&1; then
         terminal-notifier \
           -title "$title" \
           -message "$body" \

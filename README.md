@@ -122,17 +122,33 @@ The `Notification` event for **permission prompts and other non-idle messages** 
 
 ## Persistent, stackable notifications
 
-The plugin asks the OS for **persistent** (sticky-until-dismissed) and **stackable** (one banner per event, not "the latest replaces the old") notifications. Per-OS specifics:
+The plugin asks the OS for **persistent** (sticky-until-dismissed) and **stackable** (one banner per event, not "the latest replaces the old") notifications. It works out of the box with the OS's built-in tools, and gets better with one optional install.
 
-- **macOS:** with `terminal-notifier` installed, the plugin passes `-actions "OK"` which forces the **alert** banner style — those persist until you click. Without `terminal-notifier`, falls back to `osascript`'s **banner** style which auto-dismisses; to make those sticky too, `brew install terminal-notifier`, **or** set your terminal's notification style to "Alerts" in System Settings → Notifications. Each event is a separate banner — no `-group` flag means they stack.
-- **Linux:** `notify-send --urgency=critical` — sticky on most desktop environments (GNOME, KDE).
-- **Windows:** `BurntToast -SnoozeAndDismiss` — sticky toast with action buttons. Falls back to a 30-second balloon tip if BurntToast isn't installed.
+### macOS — layered fallback (alerter > terminal-notifier > osascript)
+
+The plugin tries each in order and uses the first one available:
+
+| Tool | Behavior | Install |
+|---|---|---|
+| **`alerter`** *(recommended)* | Persistent alert until clicked, stacks. Signed + notarized for macOS 15+/26+. | Download the signed `.pkg` from [vjeantet/alerter releases](https://github.com/vjeantet/alerter/releases/latest), then `sudo installer -pkg ~/Downloads/alerter-*.pkg -target /` |
+| **`terminal-notifier`** *(legacy)* | Persistent on macOS ≤ 14; silently broken on 15+ (last released 2017). | `brew install terminal-notifier` |
+| **`osascript`** *(built-in)* | Banner style, auto-dismisses after a few seconds. Always works — no install. | — |
+
+Each event is a separate banner — no `--group` flag means they stack rather than replace.
+
+### Linux
+
+`notify-send --urgency=critical` — sticky on most desktop environments (GNOME, KDE).
+
+### Windows
+
+`BurntToast -SnoozeAndDismiss` — sticky toast with action buttons. Falls back to a 30-second balloon tip if BurntToast isn't installed.
 
 ## Per-OS dependencies
 
 | OS | Voice | Notifications |
 |---|---|---|
-| macOS | `say` (built-in) | `osascript` (built-in), or `terminal-notifier` if installed |
+| macOS | `say` (built-in) | [`alerter`](https://github.com/vjeantet/alerter) (recommended for 15+) → `terminal-notifier` → `osascript` (built-in) |
 | Linux | `spd-say`, `espeak`, or `festival` (whichever is found) | `notify-send` (`libnotify`) |
 | Windows | PowerShell `System.Speech` (built-in) | [BurntToast](https://github.com/Windos/BurntToast) PowerShell module, or balloon-tip fallback |
 
