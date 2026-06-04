@@ -21,12 +21,14 @@ The notification body always **leads with the same phrase as the voice line** ("
 |---|---|---|---|
 | Stop (no tools used) | `Claude · <folder>` | `Claude ready · session <8-char id>` | "Claude ready" |
 | Stop (with tool summary) | `Claude · <folder>` | `Claude ready — Bash×4, Edit×2 · session <8-char id>` | "Claude ready" |
-| Notification (Claude provided a message) | `Claude · <folder>` | `Claude waiting — <message> · session <8-char id>` | "Claude waiting" |
-| Notification (no message) | `Claude · <folder>` | `Claude waiting · session <8-char id>` | "Claude waiting" |
+| Notification (with CC message + transcript snippet) | `Claude · <folder>` | `Claude waiting — <message> — "<last 80 chars Claude said>" · session <id>` | "Claude waiting" |
+| Notification (CC message only, no transcript) | `Claude · <folder>` | `Claude waiting — <message> · session <8-char id>` | "Claude waiting" |
+| Notification (bare) | `Claude · <folder>` | `Claude waiting · session <8-char id>` | "Claude waiting" |
 
 Example:
 - Title: `Claude · CentroQueries`
 - Body: `Claude ready — Bash×3, Edit×1 · session abcd1234`
+- Or: `Claude waiting — needs your permission to use Bash — "Let me run the test suite to verify…" · session abcd1234`
 
 `<folder>` is the basename of the session's `cwd`. `<8-char id>` is the first 8 characters of Claude's session ID — enough to disambiguate parallel sessions without filling the notification.
 

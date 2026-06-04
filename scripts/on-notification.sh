@@ -18,6 +18,7 @@ PAYLOAD="$(cat 2>/dev/null || true)"
 CWD="$(json_field cwd "$PAYLOAD")"
 SESSION_ID="$(json_field session_id "$PAYLOAD")"
 CLAUDE_MSG="$(json_field message "$PAYLOAD")"
+TRANSCRIPT="$(json_field transcript_path "$PAYLOAD")"
 
 # Skip Claude Code's redundant idle ping that fires ~60s after every Stop.
 # Permission prompts and other real Notifications still fire because their
@@ -34,6 +35,11 @@ if [ -n "$CLAUDE_MSG" ]; then
 else
   HEADLINE="Claude waiting"
 fi
+# Append a short snippet of what Claude just said (last text in the latest
+# assistant turn) so the user knows the *context* of the request, not just
+# the generic "needs your permission". Empty if no transcript / no text.
+SNIPPET="$(last_assistant_text "$TRANSCRIPT")"
+[ -n "$SNIPPET" ] && HEADLINE="$HEADLINE — \"$SNIPPET\""
 BODY="$(build_body "$HEADLINE" "$SESSION_ID")"
 
 announce waiting "Claude waiting" "$TITLE" "$BODY" "$CWD"

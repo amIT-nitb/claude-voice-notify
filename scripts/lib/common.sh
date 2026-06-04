@@ -328,6 +328,61 @@ if counts:
 PY
 }
 
+# Read the tail of a Claude transcript file and return the last text the
+# assistant said in the most recent assistant turn (since the latest user
+# message). Truncated to ~80 chars with an ellipsis. Empty if no text /
+# no file. Used in the Notification body so the user knows *what* Claude
+# is asking about, beyond the generic "needs your permission".
+last_assistant_text() {
+  local transcript="$1"
+  local max_chars="${2:-80}"
+  [ -z "$transcript" ] || [ ! -f "$transcript" ] && return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 - "$transcript" "$max_chars" <<'PY' 2>/dev/null || return 0
+import json, os, sys
+path = sys.argv[1]
+max_chars = int(sys.argv[2])
+try:
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        f.seek(max(0, size - 200_000))
+        tail = f.read().decode("utf-8", errors="replace").splitlines()
+except Exception:
+    sys.exit(0)
+turn = []
+for line in reversed(tail):
+    if not line.strip():
+        continue
+    try:
+        rec = json.loads(line)
+    except Exception:
+        continue
+    role = rec.get("role") or (rec.get("message", {}) or {}).get("role")
+    if role == "user":
+        break
+    turn.append(rec)
+# Walk forward through the turn, keep the LAST text block seen (most recent thing said).
+last_text = ""
+for rec in reversed(turn):
+    msg = rec.get("message") or rec
+    content = msg.get("content")
+    if isinstance(content, list):
+        for block in content:
+            if block.get("type") == "text":
+                txt = block.get("text") or ""
+                if txt.strip():
+                    last_text = txt
+    elif isinstance(content, str) and content.strip():
+        last_text = content
+if last_text:
+    # Collapse whitespace (newlines look bad in a one-line banner) and truncate.
+    snippet = " ".join(last_text.split())
+    if len(snippet) > max_chars:
+        snippet = snippet[: max_chars - 1].rstrip() + "…"
+    print(snippet)
+PY
+}
+
 # Quiet hours: CLAUDE_VOICE_QUIET="22-7" means 10pm–7am silent.
 # Applies to voice only — notifications stay silent and remain useful.
 in_quiet_hours() {
