@@ -16,11 +16,11 @@ Run:
 ARGS="$ARGUMENTS"
 DURATION="30m"
 SCOPE="project"
-DIR="$PWD/.claude-voice-notify"
+DIR="$PWD/.claude-callout"
 
 for arg in $ARGS; do
   case "$arg" in
-    --global|-g) SCOPE="user (global)"; DIR="$HOME/.claude/voice-notify" ;;
+    --global|-g) SCOPE="user (global)"; DIR="$HOME/.claude/callout" ;;
     *)           DURATION="$arg" ;;
   esac
 done

@@ -1,13 +1,13 @@
 {
-  "name": "claude-voice-notify",
-  "version": "0.4.1",
-  "description": "Voice + OS notifications when Claude is waiting on you or finished a turn. Cross-platform, focus-aware, with quiet hours and 60s debounce to keep noise low.",
+  "name": "claude-callout",
+  "version": "0.5.0",
+  "description": "Voice + OS notifications when Claude is waiting on you or finished a turn. Cross-platform, focus-aware, with quiet hours and 10s debounce to keep noise low.",
   "author": {
     "name": "Amit Singh",
     "url": "https://github.com/amIT-nitb"
   },
-  "homepage": "https://github.com/amIT-nitb/claude-voice-notify",
-  "repository": "https://github.com/amIT-nitb/claude-voice-notify",
-  "keywords": ["voice", "notification", "tts", "hooks", "accessibility"],
+  "homepage": "https://github.com/amIT-nitb/claude-callout",
+  "repository": "https://github.com/amIT-nitb/claude-callout",
+  "keywords": ["voice", "notification", "tts", "hooks", "accessibility", "claude-code-plugin"],
   "license": "MIT"
 }

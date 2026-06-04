@@ -10,8 +10,8 @@ Precedence: **mute** > project > user > env var > built-in default.
 Run this script:
 
 ```bash
-USER_DIR="$HOME/.claude/voice-notify"
-PROJ_DIR="$PWD/.claude-voice-notify"
+USER_DIR="$HOME/.claude/callout"
+PROJ_DIR="$PWD/.claude-callout"
 NOW=$(date +%s)
 
 # Mute lookup — highest priority

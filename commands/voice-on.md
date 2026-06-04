@@ -4,7 +4,7 @@ argument-hint: "[--global]"
 allowed-tools: Bash(mkdir:*), Bash(touch:*), Bash(rm:*), Bash(printf:*), Bash(test:*)
 ---
 
-Enable voice announcements. **Project scope by default** — affects only the current project (a `.claude-voice-notify/voice-enabled` sentinel is created at the project root). Pass `--global` to set it user-wide instead (writes to `~/.claude/voice-notify/`).
+Enable voice announcements. **Project scope by default** — affects only the current project (a `.claude-callout/voice-enabled` sentinel is created at the project root). Pass `--global` to set it user-wide instead (writes to `~/.claude/callout/`).
 
 Project sentinels override user sentinels override env vars.
 
@@ -13,10 +13,10 @@ Run:
 ```bash
 ARGS="$ARGUMENTS"
 if [ "$ARGS" = "--global" ] || [ "$ARGS" = "-g" ]; then
-  DIR="$HOME/.claude/voice-notify"
+  DIR="$HOME/.claude/callout"
   SCOPE="user (global)"
 else
-  DIR="$PWD/.claude-voice-notify"
+  DIR="$PWD/.claude-callout"
   SCOPE="project ($PWD)"
 fi
 mkdir -p "$DIR"

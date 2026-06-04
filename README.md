@@ -1,4 +1,4 @@
-# claude-voice-notify
+# claude-callout
 
 A Claude Code plugin that announces — by voice and OS notification — when Claude is **waiting on you** or has **finished a turn**. Cross-platform (macOS / Linux / Windows), focus-aware, with quiet hours and a debounce to keep noise down.
 
@@ -40,13 +40,13 @@ The hook reads Claude Code's standard JSON event payload from stdin (`session_id
 
 ```bash
 # Inside Claude Code
-/plugin install /path/to/claude-voice-notify
+/plugin install /path/to/claude-callout
 ```
 
 Or from a git remote once published:
 
 ```bash
-/plugin install https://github.com/<you>/claude-voice-notify
+/plugin install https://github.com/<you>/claude-callout
 ```
 
 ### Manual (no plugin system)
@@ -75,17 +75,17 @@ Copy `hooks/hooks.json` into your `~/.claude/settings.json` `hooks` section, rep
 Or from any shell (without launching Claude Code):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify status
-${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify mute 1h --global
-${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify off                       # disable voice in cwd
-${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify when-focused-on --global  # speak even at keyboard
-${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify test
+${CLAUDE_PLUGIN_ROOT}/bin/claude-callout status
+${CLAUDE_PLUGIN_ROOT}/bin/claude-callout mute 1h --global
+${CLAUDE_PLUGIN_ROOT}/bin/claude-callout off                       # disable voice in cwd
+${CLAUDE_PLUGIN_ROOT}/bin/claude-callout when-focused-on --global  # speak even at keyboard
+${CLAUDE_PLUGIN_ROOT}/bin/claude-callout test
 ```
 
 Symlink it onto your `$PATH` if you want it as a regular command:
 
 ```bash
-ln -s "${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify" ~/.local/bin/claude-voice-notify
+ln -s "${CLAUDE_PLUGIN_ROOT}/bin/claude-callout" ~/.local/bin/claude-callout
 ```
 
 ### Scopes & precedence
@@ -95,8 +95,8 @@ Settings resolve in this order (**highest wins**):
 | Layer | Where | Set via |
 |---|---|---|
 | 0. **Mute** (time-bound) | `mute-until` (epoch sec) at project or user scope | `/voice-mute [duration]` (`--global` for user) |
-| 1. Project | `<project>/.claude-voice-notify/{voice,notify}-{enabled,disabled}` | `/voice-on`, `/voice-off`, `/notify-on`, `/notify-off` (no flag) |
-| 2. User | `~/.claude/voice-notify/{voice,notify}-{enabled,disabled}` | the same commands with `--global` |
+| 1. Project | `<project>/.claude-callout/{voice,notify}-{enabled,disabled}` | `/voice-on`, `/voice-off`, `/notify-on`, `/notify-off` (no flag) |
+| 2. User | `~/.claude/callout/{voice,notify}-{enabled,disabled}` | the same commands with `--global` |
 | 3. Env var | `CLAUDE_VOICE`, `CLAUDE_NOTIFY` in your shell | `export CLAUDE_VOICE=on` |
 | 4. Default | hardcoded | voice **on**, notifications on, voice-when-focused off |
 
@@ -104,7 +104,7 @@ Settings resolve in this order (**highest wins**):
 
 Mute auto-expires — files are cleaned up the next time the gating helpers are consulted, so you never need to remember to "turn it back on."
 
-> **Tip:** add `.claude-voice-notify/` to your project's `.gitignore` if you don't want each collaborator to inherit your local toggles.
+> **Tip:** add `.claude-callout/` to your project's `.gitignore` if you don't want each collaborator to inherit your local toggles.
 
 ### Other knobs (env-only)
 
@@ -165,7 +165,7 @@ If a TTS or notification binary isn't available, the corresponding output is sil
 .claude-plugin/plugin.json   # plugin manifest
 hooks/hooks.json             # registers Notification, Stop, UserPromptSubmit, SessionStart
 bin/
-  claude-voice-notify        # side CLI: status / on / off / mute / unmute / test / paths
+  claude-callout        # side CLI: status / on / off / mute / unmute / test / paths
 scripts/
   on-notification.sh         # immediate "Claude waiting" (with idle-ping suppression)
   on-stop.sh                 # 10s-debounced "Claude ready" + tool summary
@@ -180,11 +180,11 @@ commands/
   voice-status.md voice-test.md
 ```
 
-State files live under `~/.claude/voice-notify/` (user scope) and `<project>/.claude-voice-notify/` (project scope, when set).
+State files live under `~/.claude/callout/` (user scope) and `<project>/.claude-callout/` (project scope, when set).
 
 ## How the debounce works
 
-1. `Stop` writes a unique token to `~/.claude/voice-notify/stop-pending` and spawns a detached watcher.
+1. `Stop` writes a unique token to `~/.claude/callout/stop-pending` and spawns a detached watcher.
 2. Watcher sleeps `CLAUDE_VOICE_DEBOUNCE` seconds (default 10), then checks the token still matches.
 3. If the user submitted a prompt, `UserPromptSubmit` deleted the file → watcher does nothing.
 4. If a newer `Stop` ran, it overwrote the token → older watcher does nothing.
@@ -196,7 +196,7 @@ Tokens are per-event, so overlapping turns can't race into duplicate announcemen
 
 Claude Code fires a `Notification` event ~60s after every `Stop` with text like "Claude Code is waiting for your input". That's a duplicate of the "Claude ready" the Stop hook just played. To skip it:
 
-1. After the Stop watcher announces, it records `last_stop_at = now` in `~/.claude/voice-notify/sessions/<session_id>.json`.
+1. After the Stop watcher announces, it records `last_stop_at = now` in `~/.claude/callout/sessions/<session_id>.json`.
 2. `UserPromptSubmit` records `last_seen = now` in the same file.
 3. When `Notification` fires with idle-pingy message text, the script reads the register: if `last_stop_at > 0` and `last_seen ≤ last_stop_at`, the user hasn't engaged since the Stop → suppress. Otherwise, fire (it's a real new event).
 

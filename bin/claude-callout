@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# claude-voice-notify — control the plugin from any shell.
+# claude-callout — control the plugin from any shell.
 #
 # Mirrors the slash commands so you can script around them without launching
 # Claude Code. Same precedence rules: project > user > env > default.

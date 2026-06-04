@@ -1,22 +1,22 @@
 {
-  "name": "claude-voice-notify",
-  "description": "A single-plugin marketplace publishing claude-voice-notify: cross-platform voice + OS notifications when Claude Code is waiting on you or finished a turn.",
+  "name": "claude-callout",
+  "description": "A single-plugin marketplace publishing claude-callout: cross-platform voice + OS notifications when Claude Code is waiting on you or finished a turn.",
   "owner": {
     "name": "Amit Singh"
   },
   "plugins": [
     {
-      "name": "claude-voice-notify",
+      "name": "claude-callout",
       "source": "./",
-      "description": "Voice + OS notifications when Claude is waiting on you or finished a turn. Cross-platform, focus-aware, with quiet hours and 60s debounce to keep noise low.",
-      "version": "0.4.1",
+      "description": "Voice + OS notifications when Claude is waiting on you or finished a turn. Cross-platform, focus-aware, with quiet hours and 10s debounce to keep noise low.",
+      "version": "0.5.0",
       "author": {
         "name": "Amit Singh",
         "url": "https://github.com/amIT-nitb"
       },
-      "homepage": "https://github.com/amIT-nitb/claude-voice-notify",
+      "homepage": "https://github.com/amIT-nitb/claude-callout",
       "license": "MIT",
-      "keywords": ["voice", "notification", "tts", "hooks", "accessibility"]
+      "keywords": ["voice", "notification", "tts", "hooks", "accessibility", "claude-code-plugin"]
     }
   ]
 }

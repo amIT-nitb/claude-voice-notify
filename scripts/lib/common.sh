@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Shared helpers for claude-voice-notify hooks.
+# Shared helpers for claude-callout hooks.
 # Sourced by on-*.sh; do not execute directly.
 
-STATE_DIR="${HOME}/.claude/voice-notify"
+STATE_DIR="${HOME}/.claude/callout"
 VOICE_FLAG="${STATE_DIR}/voice-enabled"
 NOTIFY_FLAG="${STATE_DIR}/notify-enabled"
 PENDING_FILE="${STATE_DIR}/stop-pending"
@@ -11,7 +11,7 @@ SESSIONS_DIR="${STATE_DIR}/sessions"
 # Project-scope state lives next to the user's code. Hooks pass the
 # session cwd in via the JSON payload; the per-project dir is computed
 # from that. See voice_enabled / notify_enabled for the precedence.
-PROJECT_STATE_SUBDIR=".claude-voice-notify"
+PROJECT_STATE_SUBDIR=".claude-callout"
 
 mkdir -p "$STATE_DIR" "$SESSIONS_DIR" 2>/dev/null
 
@@ -142,8 +142,8 @@ detect_os() {
 # Resolve effective on/off for a feature.
 # Precedence (highest first):
 #   0. Active time-bound mute — silences both voice + notify until expiry
-#   1. Project-scope sentinel (<cwd>/.claude-voice-notify/{voice,notify}-{enabled,disabled})
-#   2. User-scope sentinel (~/.claude/voice-notify/...)
+#   1. Project-scope sentinel (<cwd>/.claude-callout/{voice,notify}-{enabled,disabled})
+#   2. User-scope sentinel (~/.claude/callout/...)
 #   3. Env var (CLAUDE_VOICE / CLAUDE_NOTIFY)
 #   4. Built-in default (voice on, notify on — out-of-the-box experience)
 #

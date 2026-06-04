@@ -13,10 +13,10 @@ Run:
 ```bash
 ARGS="$ARGUMENTS"
 if [ "$ARGS" = "--global" ] || [ "$ARGS" = "-g" ]; then
-  DIR="$HOME/.claude/voice-notify"
+  DIR="$HOME/.claude/callout"
   SCOPE="user (global)"
 else
-  DIR="$PWD/.claude-voice-notify"
+  DIR="$PWD/.claude-callout"
   SCOPE="project ($PWD)"
 fi
 mkdir -p "$DIR"

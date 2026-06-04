@@ -6,7 +6,7 @@
 .claude/
 
 # Per-developer plugin state for this very plugin (auto-created by /voice-on etc.)
-.claude-voice-notify/
+.claude-callout/
 
 # Local Claude Code project guidance — not published
 CLAUDE.md
