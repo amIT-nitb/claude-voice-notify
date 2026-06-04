@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Fires when Claude finishes a turn.
-# 30s debounce: only announce if the user hasn't replied in that window.
+# 10s debounce: only announce if the user hasn't replied in that window.
 # Mechanism: write a token to PENDING_FILE, spawn a detached watcher that
-# announces if the token is still there after 30s. UserPromptSubmit clears it.
+# announces if the token is still there after 10s. UserPromptSubmit clears it.
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,7 @@ TITLE="$(build_title "$CWD")"
 TOKEN="$(date +%s)-$$-$RANDOM"
 echo "$TOKEN" > "$PENDING_FILE"
 
-DEBOUNCE_SECS="${CLAUDE_VOICE_DEBOUNCE:-30}"
+DEBOUNCE_SECS="${CLAUDE_VOICE_DEBOUNCE:-10}"
 
 # Detached watcher. Captures TITLE/TOKEN/SESSION_ID/CWD/TRANSCRIPT
 # via env-style closure (subshells inherit shell vars).

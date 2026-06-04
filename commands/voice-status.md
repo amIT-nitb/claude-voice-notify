@@ -36,12 +36,15 @@ resolve() {
   [ -f "$USER_DIR/${feature}-enabled" ]  && user_state="on"
   [ -f "$USER_DIR/${feature}-disabled" ] && user_state="off"
   case "$feature" in
-    voice)  [ -n "${CLAUDE_VOICE:-}" ]  && env_state="$CLAUDE_VOICE" ;;
-    notify) [ -n "${CLAUDE_NOTIFY:-}" ] && env_state="$CLAUDE_NOTIFY" ;;
+    voice)              [ -n "${CLAUDE_VOICE:-}" ]              && env_state="$CLAUDE_VOICE" ;;
+    notify)             [ -n "${CLAUDE_NOTIFY:-}" ]             && env_state="$CLAUDE_NOTIFY" ;;
+    voice-when-focused) [ -n "${CLAUDE_VOICE_WHEN_FOCUSED:-}" ] && env_state="$CLAUDE_VOICE_WHEN_FOCUSED" ;;
   esac
 
   local effective source
-  if [ -n "$MUTE_SCOPE" ]; then
+  # Mute silences voice/notify but does NOT change the voice-when-focused
+  # preference — that's a behavioral flag, not an audio gate.
+  if [ -n "$MUTE_SCOPE" ] && [ "$feature" != "voice-when-focused" ]; then
     effective="off"; source="muted ($MUTE_SCOPE)"
   elif [ "$proj_state" != "-" ]; then
     effective="$proj_state"; source="project"
@@ -55,21 +58,24 @@ resolve() {
   printf '%s|%s|%s|%s|%s\n' "$effective" "$source" "$proj_state" "$user_state" "$env_state"
 }
 
-IFS='|' read -r v_eff v_src v_proj v_user v_env <<< "$(resolve voice off)"
-IFS='|' read -r n_eff n_src n_proj n_user n_env <<< "$(resolve notify on)"
+IFS='|' read -r v_eff  v_src  v_proj  v_user  v_env  <<< "$(resolve voice on)"
+IFS='|' read -r n_eff  n_src  n_proj  n_user  n_env  <<< "$(resolve notify on)"
+IFS='|' read -r wf_eff wf_src wf_proj wf_user wf_env <<< "$(resolve voice-when-focused off)"
 
-printf 'Voice:         %s (%s)\n' "$v_eff" "$v_src"
-printf 'Notifications: %s (%s)\n' "$n_eff" "$n_src"
-printf 'Quiet hours:   %s\n' "${CLAUDE_VOICE_QUIET:-none}"
-printf 'Stop debounce: %ss\n' "${CLAUDE_VOICE_DEBOUNCE:-30}"
+printf 'Voice:               %s (%s)\n' "$v_eff" "$v_src"
+printf 'Notifications:       %s (%s)\n' "$n_eff" "$n_src"
+printf 'Voice-when-focused:  %s (%s)\n' "$wf_eff" "$wf_src"
+printf 'Quiet hours:         %s\n' "${CLAUDE_VOICE_QUIET:-none}"
+printf 'Stop debounce:       %ss\n' "${CLAUDE_VOICE_DEBOUNCE:-10}"
 if [ -n "$MUTE_SCOPE" ]; then
   M=$((MUTE_REMAINING / 60)); S=$((MUTE_REMAINING % 60))
-  printf 'Mute:          %s scope, %dm %ds remaining\n' "$MUTE_SCOPE" "$M" "$S"
+  printf 'Mute:                %s scope, %dm %ds remaining\n' "$MUTE_SCOPE" "$M" "$S"
 fi
 echo
 echo "Resolution (highest precedence wins):"
-printf '  Voice    project=%-3s  user=%-3s  env=%-5s  → %s\n' "$v_proj" "$v_user" "$v_env" "$v_eff"
-printf '  Notify   project=%-3s  user=%-3s  env=%-5s  → %s\n' "$n_proj" "$n_user" "$n_env" "$n_eff"
+printf '  Voice         project=%-3s  user=%-3s  env=%-5s  → %s\n' "$v_proj"  "$v_user"  "$v_env"  "$v_eff"
+printf '  Notify        project=%-3s  user=%-3s  env=%-5s  → %s\n' "$n_proj"  "$n_user"  "$n_env"  "$n_eff"
+printf '  When-focused  project=%-3s  user=%-3s  env=%-5s  → %s\n' "$wf_proj" "$wf_user" "$wf_env" "$wf_eff"
 echo
 echo "Project state dir: $PROJ_DIR"
 echo "User state dir:    $USER_DIR"

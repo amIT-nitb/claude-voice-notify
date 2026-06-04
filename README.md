@@ -53,14 +53,16 @@ Copy `hooks/hooks.json` into your `~/.claude/settings.json` `hooks` section, rep
 
 ## Enable
 
-Voice is **off by default**, notifications are **on by default**. Toggle from inside Claude Code — settings apply to the **current project** by default:
+**Voice and notifications are both ON by default** — out of the box, every finished turn announces. Toggle from inside Claude Code — settings apply to the **current project** by default:
 
 ```
-/voice-on              # enable voice for THIS project
+/voice-on              # enable voice for THIS project (default: on)
 /voice-off             # disable voice for THIS project
 /voice-on --global     # enable voice user-wide (all projects)
 /voice-off --global    # disable voice user-wide
 /notify-on / off       # same idea for OS notifications (with --global)
+/voice-when-focused-on        # speak even when terminal/IDE is focused (default: off)
+/voice-when-focused-off       # restore default focus-skip
 /voice-mute 30m        # silence both voice + notify for 30 minutes (auto-expires)
 /voice-mute 2h --global  # mute everywhere for 2 hours
 /voice-unmute          # cancel an active mute
@@ -73,7 +75,8 @@ Or from any shell (without launching Claude Code):
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify status
 ${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify mute 1h --global
-${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify on   # enable voice for cwd
+${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify off                       # disable voice in cwd
+${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify when-focused-on --global  # speak even at keyboard
 ${CLAUDE_PLUGIN_ROOT}/bin/claude-voice-notify test
 ```
 
@@ -93,7 +96,7 @@ Settings resolve in this order (**highest wins**):
 | 1. Project | `<project>/.claude-voice-notify/{voice,notify}-{enabled,disabled}` | `/voice-on`, `/voice-off`, `/notify-on`, `/notify-off` (no flag) |
 | 2. User | `~/.claude/voice-notify/{voice,notify}-{enabled,disabled}` | the same commands with `--global` |
 | 3. Env var | `CLAUDE_VOICE`, `CLAUDE_NOTIFY` in your shell | `export CLAUDE_VOICE=on` |
-| 4. Default | hardcoded | voice off, notifications on |
+| 4. Default | hardcoded | voice **on**, notifications on, voice-when-focused off |
 
 `/voice-status` shows effective value + every layer so you can see *why* it's on or off, including any active mute and remaining time.
 
@@ -110,10 +113,10 @@ export CLAUDE_VOICE_DEBOUNCE=60    # seconds to wait after Stop
 
 ## Noise-reduction features
 
-- **30s debounce on `Stop`** — if you reply within 30s, the "Claude ready" announcement is cancelled. Only fires when you've genuinely walked away.
+- **10s debounce on `Stop`** — if you reply within 10s, the "Claude ready" announcement is cancelled. Only fires when you've genuinely walked away.
 - **Idle-ping suppression** — Claude Code fires a redundant "still waiting" Notification ~60s after every Stop. The plugin recognizes that and skips the duplicate, so you don't double-buzz.
 - **Time-bound mute** — `/voice-mute 30m` silences everything for a window. Auto-expires. Works at project or user scope.
-- **Focus skip** — on macOS, voice is suppressed when a terminal/editor is the foreground app. Notification still fires silently. Single biggest noise reducer.
+- **Focus skip** (default on) — on macOS, voice is suppressed when a terminal/editor is the foreground app. Notification still fires silently. Single biggest noise reducer. Disable with `/voice-when-focused-on` if you want voice even at the keyboard.
 - **Quiet hours** — `CLAUDE_VOICE_QUIET="22-7"` silences voice between 10pm and 7am. Notifications unaffected.
 - **Split flags** — voice (audible) and notifications (silent) toggle independently.
 - **Distinct cues** — different system sounds for "ready" vs "waiting".
@@ -163,13 +166,14 @@ bin/
   claude-voice-notify        # side CLI: status / on / off / mute / unmute / test / paths
 scripts/
   on-notification.sh         # immediate "Claude waiting" (with idle-ping suppression)
-  on-stop.sh                 # 30s-debounced "Claude ready" + tool summary
+  on-stop.sh                 # 10s-debounced "Claude ready" + tool summary
   on-prompt.sh               # cancels pending Stop, records user_seen
   on-session-start.sh        # clears stale state on new session
   lib/common.sh              # OS detection, gating, dispatch, mute, tool_summary
 commands/
   voice-on.md voice-off.md
   notify-on.md notify-off.md
+  voice-when-focused-on.md voice-when-focused-off.md
   voice-mute.md voice-unmute.md
   voice-status.md voice-test.md
 ```
@@ -179,7 +183,7 @@ State files live under `~/.claude/voice-notify/` (user scope) and `<project>/.cl
 ## How the debounce works
 
 1. `Stop` writes a unique token to `~/.claude/voice-notify/stop-pending` and spawns a detached watcher.
-2. Watcher sleeps `CLAUDE_VOICE_DEBOUNCE` seconds (default 30), then checks the token still matches.
+2. Watcher sleeps `CLAUDE_VOICE_DEBOUNCE` seconds (default 10), then checks the token still matches.
 3. If the user submitted a prompt, `UserPromptSubmit` deleted the file → watcher does nothing.
 4. If a newer `Stop` ran, it overwrote the token → older watcher does nothing.
 5. Otherwise, announce — *and record the timestamp in the per-session register* so the next idle ping ~60s later can be detected as redundant.

@@ -145,7 +145,7 @@ detect_os() {
 #   1. Project-scope sentinel (<cwd>/.claude-voice-notify/{voice,notify}-{enabled,disabled})
 #   2. User-scope sentinel (~/.claude/voice-notify/...)
 #   3. Env var (CLAUDE_VOICE / CLAUDE_NOTIFY)
-#   4. Built-in default (voice off, notify on)
+#   4. Built-in default (voice on, notify on — out-of-the-box experience)
 #
 # voice_enabled and notify_enabled accept an optional cwd; pass "" to
 # skip project resolution (e.g. for tooling that has no project context).
@@ -160,7 +160,7 @@ voice_enabled() {
   fi
   [ -f "$VOICE_FLAG" ] && return 0
   [ -f "${STATE_DIR}/voice-disabled" ] && return 1
-  [ "${CLAUDE_VOICE:-off}" = "on" ]
+  [ "${CLAUDE_VOICE:-on}" = "on" ]
 }
 
 notify_enabled() {
@@ -175,6 +175,24 @@ notify_enabled() {
   [ -f "$NOTIFY_FLAG" ] && return 0
   [ -f "${STATE_DIR}/notify-disabled" ] && return 1
   [ "${CLAUDE_NOTIFY:-on}" = "on" ]
+}
+
+# Returns 0 if voice should fire EVEN WHEN the terminal/IDE is focused.
+# Off by default — focus-skip is the biggest noise reducer when actively
+# at the keyboard. Users who want voice regardless of focus opt in via
+# /voice-when-focused-on (project) or --global (user).
+# Same precedence chain as the other flags. Env var: CLAUDE_VOICE_WHEN_FOCUSED.
+voice_when_focused_enabled() {
+  local cwd="${1:-}"
+  local proj
+  if [ -n "$cwd" ]; then
+    proj="$(project_state_dir "$cwd")"
+    [ -f "${proj}/voice-when-focused-enabled" ] && return 0
+    [ -f "${proj}/voice-when-focused-disabled" ] && return 1
+  fi
+  [ -f "${STATE_DIR}/voice-when-focused-enabled" ] && return 0
+  [ -f "${STATE_DIR}/voice-when-focused-disabled" ] && return 1
+  [ "${CLAUDE_VOICE_WHEN_FOCUSED:-off}" = "on" ]
 }
 
 # Sanitize a session_id into a filesystem-safe slug.
@@ -482,8 +500,14 @@ announce() {
     notify_os "$notify_title" "$notify_body"
   fi
 
-  if voice_enabled "$cwd" && ! in_quiet_hours && ! terminal_focused; then
-    play_cue "$kind"
-    say_text "$voice_message"
+  if voice_enabled "$cwd" && ! in_quiet_hours; then
+    # Focus skip is on by default (biggest noise reducer when at keyboard).
+    # Users who explicitly opt in via voice-when-focused-enabled bypass it.
+    if terminal_focused && ! voice_when_focused_enabled "$cwd"; then
+      :  # focused + opt-in not set → suppress voice (notification still fired)
+    else
+      play_cue "$kind"
+      say_text "$voice_message"
+    fi
   fi
 }
