@@ -1,6 +1,6 @@
 {
   "name": "claude-callout",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Voice + OS notifications when Claude is waiting on you or finished a turn. Cross-platform, focus-aware, with quiet hours and 10s debounce to keep noise low.",
   "author": {
     "name": "Amit Singh",

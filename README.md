@@ -1,5 +1,8 @@
 # claude-callout
 
+[![Latest release](https://img.shields.io/github/v/release/amIT-nitb/claude-callout?label=release)](https://github.com/amIT-nitb/claude-callout/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A Claude Code plugin that announces — by voice and OS notification — when Claude is **waiting on you** or has **finished a turn**. Cross-platform (macOS / Linux / Windows), focus-aware, with quiet hours and a debounce to keep noise down.
 
 ## What it does
@@ -7,7 +10,7 @@ A Claude Code plugin that announces — by voice and OS notification — when Cl
 | Event | Trigger | Behavior |
 |---|---|---|
 | **Claude waiting** | Permission prompt or idle Notification (Claude Code `Notification` hook) | Announce immediately. Suppresses Claude Code's redundant ~60s "still waiting" duplicate fired right after every Stop. |
-| **Claude ready** | Turn finishes (Claude Code `Stop` hook) | Wait 30s — announce only if you haven't replied. Notification body includes a **tool summary** (e.g. `Bash×4, Edit×2`) parsed from the transcript. |
+| **Claude ready** | Turn finishes (Claude Code `Stop` hook) | Wait 10s — announce only if you haven't replied. Notification body includes a **tool summary** (e.g. `Bash×4, Edit×2`) parsed from the transcript. |
 
 Both events fire an OS desktop notification (silent, dismissible) and — if voice is enabled — a short sound cue plus a spoken message.
 
@@ -36,17 +39,49 @@ The hook reads Claude Code's standard JSON event payload from stdin (`session_id
 
 ## Install
 
-### As a local plugin
+### From this repo's marketplace
 
-```bash
-# Inside Claude Code
-/plugin install /path/to/claude-callout
+Inside Claude Code:
+
+```
+/plugin marketplace add amIT-nitb/claude-callout
+/plugin install claude-callout@claude-callout
 ```
 
-Or from a git remote once published:
+Or from your shell (without launching Claude Code):
 
 ```bash
-/plugin install https://github.com/<you>/claude-callout
+claude plugin marketplace add amIT-nitb/claude-callout
+claude plugin install claude-callout@claude-callout
+```
+
+Then verify with:
+
+```
+/voice-test
+```
+
+### Update later
+
+```bash
+claude plugin update claude-callout@claude-callout
+```
+
+Restart Claude Code (full quit + relaunch) for an active session to pick up the new code — `${CLAUDE_PLUGIN_ROOT}` is resolved at session start, so a running session keeps using the version it was launched with.
+
+### Uninstall
+
+```bash
+claude plugin uninstall claude-callout@claude-callout
+claude plugin marketplace remove claude-callout
+```
+
+### Local development
+
+To test changes to a clone of this repo without going through the marketplace, point Claude Code at the directory directly:
+
+```bash
+claude --plugin-dir /path/to/claude-callout
 ```
 
 ### Manual (no plugin system)
@@ -110,7 +145,7 @@ Mute auto-expires — files are cleaned up the next time the gating helpers are 
 
 ```bash
 export CLAUDE_VOICE_QUIET="22-7"   # silent 10pm–7am (voice only)
-export CLAUDE_VOICE_DEBOUNCE=60    # seconds to wait after Stop
+export CLAUDE_VOICE_DEBOUNCE=20    # seconds to wait after Stop (default: 10)
 ```
 
 ## Noise-reduction features
@@ -173,11 +208,16 @@ scripts/
   on-session-start.sh        # clears stale state on new session
   lib/common.sh              # OS detection, gating, dispatch, mute, tool_summary
 commands/
-  voice-on.md voice-off.md
-  notify-on.md notify-off.md
-  voice-when-focused-on.md voice-when-focused-off.md
-  voice-mute.md voice-unmute.md
-  voice-status.md voice-test.md
+  voice-on.md                # /voice-on (project; --global for user)
+  voice-off.md               # /voice-off
+  notify-on.md               # /notify-on
+  notify-off.md              # /notify-off
+  voice-when-focused-on.md   # /voice-when-focused-on (default off)
+  voice-when-focused-off.md  # /voice-when-focused-off
+  voice-mute.md              # /voice-mute [duration]
+  voice-unmute.md            # /voice-unmute
+  voice-status.md            # /voice-status — layered breakdown
+  voice-test.md              # /voice-test — fire test announcements
 ```
 
 State files live under `~/.claude/callout/` (user scope) and `<project>/.claude-callout/` (project scope, when set).
