@@ -26,7 +26,7 @@ The notification body always **leads with the same phrase as the voice line** ("
 | Notification (bare) | `Claude · <folder>` | `Claude waiting · session <8-char id>` | "Claude waiting" |
 
 Example:
-- Title: `Claude · CentroQueries`
+- Title: `Claude · claude-callout`
 - Body: `Claude ready — Bash×3, Edit×1 · session abcd1234`
 - Or: `Claude waiting — needs your permission to use Bash — "Let me run the test suite to verify…" · session abcd1234`
 
